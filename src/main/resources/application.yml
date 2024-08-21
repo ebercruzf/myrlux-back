@@ -1,0 +1,71 @@
+logging:
+  pattern:
+    console: "[Chassis Extractor] %clr(%d{HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) %clr(---){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
+  level:
+    org:
+      springframework:
+        web:
+          filter:
+            reactive: DEBUG
+        context: DEBUG
+        test:
+          context:
+            cache: DEBUG
+
+server:
+  port: 11002
+  ssl:
+    protocols: false
+
+spring:
+  application:
+    name: myrlux-back
+    description: Test Application Student
+    api-path: /api
+  profiles:
+    active: dev
+  mvc:
+    log-resolved-exception: false
+  datasource:
+    url: jdbc:postgresql://localhost:5432/schoolbd
+    username: postgres
+    password: 1234
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+  codec:
+    max-in-memory-size: 500MB
+  main:
+    banner-mode: OFF
+  devtools:
+    restart:
+      additional-paths:
+        - conf/**
+    component-scan:
+      packages: com.ebercruz.myrlux.back
+
+springdoc:
+  show-actuator: true
+  use-management-port: false
+
+management:
+  server:
+    port: 9090
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+api:
+  web:
+    clients:
+      login:
+        post:
+
+cloud:
+  config:
+    discovery:
+      enabled: false
