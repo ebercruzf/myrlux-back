@@ -38,7 +38,19 @@ MyrluxBack es una aplicación backend para la gestión de alumnos en una institu
 Para ejecutar la aplicación:
 ```
 mvn spring-boot:run
+
+
 ```
+Comando extras de utilidad:
+
+```
+mvn clean install
+
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+
+```
+
+
 La aplicación estará disponible en `http://localhost:11002`
 
 ## Endpoints API
