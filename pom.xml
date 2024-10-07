@@ -31,12 +31,24 @@
 		<java.version>21</java.version>
 	</properties>
 	-->
+	<!--
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>21</java.version>
 		<maven.compiler.source>21</maven.compiler.source>
 		<maven.compiler.target>21</maven.compiler.target>
 		<javacpp.platform>macosx-arm64</javacpp.platform>
+	</properties>
+     -->
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<java.version>21</java.version>
+		<maven.compiler.source>21</maven.compiler.source>
+		<maven.compiler.target>21</maven.compiler.target>
+		<javacpp.platform>macosx-arm64</javacpp.platform>
+		<sonar.projectKey>myrlux-back</sonar.projectKey>
+		<sonar.organization>tu-organizacion</sonar.organization>
+		<!-- La URL de SonarQube ahora se define en los perfiles -->
 	</properties>
 
 	<dependencies>
@@ -162,5 +174,23 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<id>dev</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<sonar.host.url>http://localhost:9000</sonar.host.url>
+			</properties>
+		</profile>
+		<profile>
+			<id>ci</id>
+			<properties>
+				<sonar.host.url>http://jenkins-sonarqube-1:9000</sonar.host.url>
+			</properties>
+		</profile>
+	</profiles>
 
 </project>
