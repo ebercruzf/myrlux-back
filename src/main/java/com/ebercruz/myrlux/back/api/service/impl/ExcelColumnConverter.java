@@ -45,7 +45,8 @@ public class ExcelColumnConverter {
     //    case MultiColumn(String s) -> // proceso para columna múltiple
     // }
     public sealed interface ExcelColumn permits ExcelColumnConverter.SingleColumn, ExcelColumnConverter.MultiColumn {
-        // Método factory que utiliza pattern matching para crear el tipo apropiado de columna
+        // Método factory que crea el tipo apropiado de columna
+        // basado en la longitud del string de entrada
         static ExcelColumn of(String column) {
             if (column == null) {
                 throw new IllegalArgumentException("La columna no puede ser null");
