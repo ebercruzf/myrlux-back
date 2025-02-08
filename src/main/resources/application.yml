@@ -1,41 +1,10 @@
-logging:
-  pattern:
-    console: "[Chassis Extractor] %clr(%d{HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) %clr(---){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
-  level:
-    org:
-      springframework:
-        web:
-          filter:
-            reactive: DEBUG
-        context: DEBUG
-        test:
-          context:
-            cache: DEBUG
-
-server:
-  port: 11002
-  ssl:
-    protocols: false
-
 spring:
   application:
-    name: myrlux-back
+    name: myrlux-deepseek-api
     description: Test Application Student
     api-path: /api
   profiles:
     active: dev
-  mvc:
-    log-resolved-exception: false
-  datasource:
-    url: jdbc:postgresql://localhost:5432/schoolbd
-    username: postgres
-    password: 1234
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    show-sql: true
-    hibernate:
-      ddl-auto: update
   codec:
     max-in-memory-size: 500MB
   main:
@@ -46,10 +15,96 @@ spring:
         - conf/**
     component-scan:
       packages: com.ebercruz.myrlux.back
+  datasource:
+    url: jdbc:postgresql://localhost:5432/schoolbd
+    username: postgres
+    password: 1234
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 25
+          batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
+  webflux:
+    base-path: /api
+    static-path-pattern: /static/**
+    multipart:
+      max-in-memory-size: 10MB
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+server:
+  port: 11003
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+    min-response-size: 1024
+  http2:
+    enabled: true
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+    whitelabel:
+      enabled: false
 
 springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      - url: /v3/api-docs
+        name: API V1
+    doc-expansion: none
+    default-models-expand-depth: 1
+    default-model-expand-depth: 1
+    syntax-highlight:
+      activated: true
+    try-it-out-enabled: true
   show-actuator: true
+  packages-to-scan: com.ebercruz.myrlux.back
+  paths-to-match: /api/**
   use-management-port: false
+
+logging:
+  pattern:
+    console: "[${spring.application.name}] %clr(%d{HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
+    file: "[${spring.application.name}] %d{yyyy-MM-dd HH:mm:ss.SSS} ${LOG_LEVEL_PATTERN:%5p} ${PID:- } --- [%t] %-40.40logger{39} : %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
+  file:
+    name: logs/myrlux-back.log
+    max-size: 10MB
+    max-history: 30
+  level:
+    root: INFO
+    com.ebercruz.myrlux.back: DEBUG
+    org.springframework:
+      web:
+        filter.reactive: DEBUG
+        reactive: DEBUG
+      security: DEBUG
+      data: INFO
+      context: DEBUG
+      test.context.cache: DEBUG
+    reactor.netty.http.client: DEBUG
+    io.swagger.models.parameters.AbstractSerializableParameter: ERROR
 
 management:
   server:
@@ -58,14 +113,79 @@ management:
     web:
       exposure:
         include: '*'
+      base-path: /actuator
+    enabled-by-default: false
+  endpoint:
+    health:
+      enabled: true
+      show-details: always
+      probes:
+        enabled: true
+    info:
+      enabled: true
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+cloud:
+  config:
+    discovery:
+      enabled: false
 
 api:
   web:
     clients:
       login:
         post:
+          timeout: 5000
+          retry-max-attempts: 3
+          retry-backoff: 1000
 
-cloud:
-  config:
-    discovery:
-      enabled: false
+# Cache Configuration
+cache:
+  ttl: 3600
+  max-entries: 1000
+
+# Rate Limiting Configuration
+resilience4j:
+  ratelimiter:
+    instances:
+      default:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0
+        registerHealthIndicator: true
+  retry:
+    instances:
+      default:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+
+# Cors Configuration
+cors:
+  allowed-origins: "*"
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+  exposed-headers: Authorization
+  allow-credentials: true
+  max-age: 3600
+
+llm:
+  ollama:
+    url: ws://localhost:11434
+  model:
+    name: deepseek-r1:8b
+
+reactive:
+  websocket:
+    max-frame-payload-length: 1048576
+    max-text-message-size: 1048576

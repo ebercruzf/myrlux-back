@@ -1,0 +1,292 @@
+openapi: 3.1.0
+info:
+  title: LLM API Service
+  description: |
+    API para interactuar con modelos de lenguaje a través de Ollama.
+    Incluye endpoints de monitoreo y salud del servicio.
+  version: 1.0.0
+  contact:
+    name: Eber Cruz
+    url: http://www.ebercruz.com
+
+servers:
+  - url: /api
+    description: API Server
+  - url: /actuator
+    description: Monitoring endpoints
+
+tags:
+  - name: LLM
+    description: Operaciones con el modelo de lenguaje
+  - name: Monitoring
+    description: Endpoints de monitoreo y salud del servicio
+
+paths:
+  /llm/chat:
+    post:
+      tags: [LLM]
+      summary: Genera una respuesta de chat
+      description: Endpoint unificado que maneja tanto streaming como respuestas completas
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LLMRequest'
+      responses:
+        '200':
+          description: Respuesta exitosa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /actuator/health:
+    get:
+      tags: [Monitoring]
+      summary: Verifica el estado general del servicio
+      description: Proporciona información detallada sobre el estado del servicio y sus dependencias
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Estado del servicio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /actuator/health/liveness:
+    get:
+      tags: [Monitoring]
+      summary: Verifica si el servicio está vivo
+      description: Endpoint para Kubernetes liveness probe
+      operationId: livenessCheck
+      responses:
+        '200':
+          description: Servicio vivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivenessResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /actuator/health/readiness:
+    get:
+      tags: [Monitoring]
+      summary: Verifica si el servicio está listo para recibir tráfico
+      description: Endpoint para Kubernetes readiness probe
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: Servicio listo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /actuator/metrics:
+    get:
+      tags: [Monitoring]
+      summary: Obtiene las métricas del servicio
+      description: Proporciona métricas detalladas sobre el rendimiento y uso del servicio
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Métricas del servicio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+  /actuator/prometheus:
+    get:
+      tags: [Monitoring]
+      summary: Endpoint de métricas para Prometheus
+      description: Expone métricas en formato Prometheus
+      operationId: getPrometheusMetrics
+      responses:
+        '200':
+          description: Métricas en formato Prometheus
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/LLMResponse'
+            - $ref: '#/components/schemas/HealthResponse'
+        message:
+          type: string
+        code:
+          type: string
+        success:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+
+    LLMRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          description: El texto de entrada para el modelo
+        temperature:
+          type: number
+          format: double
+          default: 0.7
+          minimum: 0
+          maximum: 1
+          description: Controla la aleatoriedad de las respuestas
+        streamPreferred:
+          type: boolean
+          description: Indica si se prefiere respuesta en streaming
+        expectedResponseLength:
+          type: integer
+          format: int32
+          description: Longitud esperada de la respuesta en caracteres
+
+    LLMResponse:
+      type: object
+      required: [response, model]
+      properties:
+        response:
+          type: string
+          description: Respuesta generada por el modelo
+        model:
+          type: string
+          description: Nombre del modelo utilizado
+        totalTokens:
+          type: integer
+          format: int32
+          description: Número total de tokens utilizados
+
+    HealthResponse:
+      type: object
+      required: [status, components]
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN, UNKNOWN]
+          description: Estado general del servicio
+        components:
+          type: object
+          properties:
+            ollama:
+              $ref: '#/components/schemas/ComponentHealth'
+            diskSpace:
+              $ref: '#/components/schemas/ComponentHealth'
+            db:
+              $ref: '#/components/schemas/ComponentHealth'
+
+    ComponentHealth:
+      type: object
+      required: [status, details]
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN, UNKNOWN]
+        details:
+          type: object
+          additionalProperties: true
+
+    LivenessResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        timestamp:
+          type: string
+          format: date-time
+
+    ReadinessResponse:
+      type: object
+      required: [status, dependencies]
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        dependencies:
+          type: object
+          properties:
+            ollama:
+              type: string
+              enum: [UP, DOWN]
+            database:
+              type: string
+              enum: [UP, DOWN]
+
+    MetricsResponse:
+      type: object
+      required: [measurements]
+      properties:
+        measurements:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              measurements:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    statistic:
+                      type: string
+                    value:
+                      type: number
+
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+
+    InternalError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+
+    ServiceUnavailable:
+      description: Servicio no disponible
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'

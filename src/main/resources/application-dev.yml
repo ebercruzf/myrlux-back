@@ -17,7 +17,7 @@ logging:
       netty: DEBUG
 
 server:
-  port: 11002
+  port: 11004
   ssl:
     protocols: false
   error:
@@ -27,15 +27,20 @@ server:
 
 spring:
   application:
-    name: myrlux-back
+    name: myrlux-deepseek-api
     description: Una aplicación de ejemplo
     api-path: /api
   mvc:
     log-resolved-exception: false
+  config:
+    ai:
+      vertex:
+        credentials: /Users/eber/Documents/Proyectos/IA/private/myrlux-b-cluoud.json
+        project-id: mentor-379
   datasource:
     url: jdbc:postgresql://localhost:5432/schoolbd
     username: postgres
-    password: 1234
+    password: 0000
     driver-class-name: org.postgresql.Driver
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
