@@ -15,6 +15,7 @@ logging:
       core: DEBUG
     io:
       netty: DEBUG
+      github.resilience4j: DEBUG
 
 server:
   port: 11002
@@ -71,6 +72,9 @@ management:
   endpoint:
     health:
       show-details: always
+      show-components: always
+      probes:
+        enabled: true
 
 api:
   web:
@@ -82,3 +86,112 @@ cloud:
   config:
     discovery:
       enabled: false
+
+resilience4j:
+  # Configuración del patrón Circuit Breaker
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true                     # Habilita la monitorización en /actuator/health
+        slidingWindowType: COUNT_BASED                    # Tipo de ventana: basada en conteo de llamadas
+        slidingWindowSize: 20                             # Tamaño de la ventana deslizante (20 llamadas es un buen equilibrio)
+        minimumNumberOfCalls: 15                          # Llamadas mínimas antes de calcular la tasa de error (75% de la ventana)
+        failureRateThreshold: 50                          # Umbral de tasa de fallos para abrir el circuito (%)
+        waitDurationInOpenState: 15s                      # Tiempo que permanece abierto antes de pasar a semi-abierto
+        permittedNumberOfCallsInHalfOpenState: 10         # Llamadas permitidas en estado semi-abierto para probar recuperación
+        automaticTransitionFromOpenToHalfOpenEnabled: true # Transición automática de abierto a semi-abierto
+        eventConsumerBufferSize: 50                       # Buffer de eventos para análisis
+        recordExceptions:                                 # Lista de excepciones que se consideran fallos
+          - java.io.IOException
+          - java.net.ConnectException
+          - org.springframework.web.client.HttpServerErrorException
+          - org.springframework.web.reactive.function.client.WebClientResponseException
+    instances:
+      userService:
+        baseConfig: default                               # Usa la configuración básica definida arriba
+      paymentService:
+        baseConfig: default
+        waitDurationInOpenState: 30s                      # Tiempo mayor para este servicio crítico
+        failureRateThreshold: 40                          # Umbral más estricto para este servicio crítico
+      notificationService:
+        baseConfig: default
+        slidingWindowSize: 10                             # Ventana más pequeña para servicio menos crítico
+        waitDurationInOpenState: 10s                      # Recuperación más rápida para servicio no crítico
+      miNuevoServicio:
+        baseConfig: default
+        slidingWindowSize: 10                             # Ventana más pequeña para servicio menos crítico
+        waitDurationInOpenState: 10s                      # Recuperación más rápida para servicio no crítico
+  # Configuración específica para WebFlux - mejora comportamiento reactivo
+  reactor:
+    contexts:
+      copy:
+        enabled: true                                     # Propaga el contexto de reactor a través de llamadas de Resilience4j
+
+  # Configuración del patrón Bulkhead (aislamiento de fallos)
+  bulkhead:
+    configs:
+      default:
+        maxWaitDuration: 0ms                              # Para WebFlux es mejor rechazar inmediatamente que encolar
+    instances:
+      userService:
+        maxConcurrentCalls: 20                            # Llamadas concurrentes máximas permitidas
+      paymentService:
+        maxConcurrentCalls: 10                            # Menor concurrencia para el servicio de pagos (crítico)
+      testService:
+        maxConcurrentCalls: 24
+      miNuevoServicio:
+        maxConcurrentCalls: 24
+  # Configuración del patrón Rate Limiter
+  ratelimiter:
+    instances:
+      default:
+        limitForPeriod: 100                               # Solicitudes permitidas por período
+        limitRefreshPeriod: 1s                            # Período de refresco
+        timeoutDuration: 500ms                            # Tiempo de espera reducido
+        registerHealthIndicator: true                     # Registra estado de salud
+        eventConsumerBufferSize: 100                      # Tamaño del búfer para eventos
+      apiEndpoints:
+        limitForPeriod: 50                                # Límite más estricto para endpoints de API
+        limitRefreshPeriod: 1s                            # Refresco por segundo
+      batchProcessing:
+        limitForPeriod: 5                                 # Muy limitado para operaciones pesadas
+        limitRefreshPeriod: 10s                           # Período más largo para procesos batch
+        timeoutDuration: 3s                               # Mayor tiempo de espera para procesos batch
+
+  # Configuración del patrón Retry
+  retry:
+    instances:
+      default:
+        maxAttempts: 3                                    # Número máximo de intentos
+        waitDuration: 1s                                  # Tiempo entre intentos
+        retryExceptions:                                  # Excepciones que provocan reintento
+          - java.io.IOException
+          - java.net.SocketTimeoutException
+        ignoreExceptions:                                 # Excepciones que no provocan reintento
+          - org.springframework.web.client.HttpClientErrorException
+      miNuevoServicio:
+        maxAttempts: 3                                    # Número máximo de intentos
+        waitDuration: 1s                                  # Tiempo entre intentos
+        retryExceptions: # Excepciones que provocan reintento
+          - java.io.IOException
+          - java.net.SocketTimeoutException
+        ignoreExceptions: # Excepciones que no provocan reintento
+          - org.springframework.web.client.HttpClientErrorException
+  # Configuración del patrón Time Limiter
+  timelimiter:
+    instances:
+      default:
+        timeoutDuration: 2s                               # Timeout general predeterminado
+        cancelRunningFuture: true                         # Cancela la ejecución al expirar el timeout
+      userOperations:
+        timeoutDuration: 1s                               # Operaciones rápidas de usuario
+      paymentProcessing:
+        timeoutDuration: 5s                               # Mayor timeout para operaciones de pago
+      reportGeneration:
+        timeoutDuration: 10s                              # Timeout amplio para generación de informes
+      miNuevoServicio:
+        timeoutDuration: 10s
+# Añadir a application-dev.yml
+chaos:
+  service:
+    url: http://localhost:11003  # Ajustar según donde esté desplegado tu servicio de caos

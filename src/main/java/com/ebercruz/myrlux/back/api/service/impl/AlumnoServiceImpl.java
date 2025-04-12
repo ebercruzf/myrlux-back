@@ -6,6 +6,10 @@ import com.ebercruz.myrlux.back.dto.AlumnoDTO;
 import com.ebercruz.myrlux.back.entity.AlumnoEntity;
 import com.ebercruz.myrlux.back.repository.AlumnoRepository;
 import com.ebercruz.myrlux.back.util.*;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +23,9 @@ import reactor.core.scheduler.Schedulers;
 import org.springframework.validation.Validator;
 import org.springframework.validation.Errors;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +65,10 @@ public class AlumnoServiceImpl implements AlumnoService {
      * @return Mono con la respuesta que contiene el DTO del alumno creado
      */
 
+    @CircuitBreaker(name = "miNuevoServicio", fallbackMethod = "miFallbackMethod")
+    @Bulkhead(name = "miNuevoServicio")
+    @Retry(name = "miNuevoServicio")
+    @TimeLimiter(name = "miNuevoServicio")
     @Override
     public Mono<ResponseEntity<ApiResponse<AlumnoDTO>>> crearAlumno(AlumnoDTO alumnoDTO) {
         return Mono.just(alumnoDTO)
@@ -295,4 +305,26 @@ public class AlumnoServiceImpl implements AlumnoService {
                 })
                 .subscribeOn(Schedulers.boundedElastic());
     }
+
+    // MÉTODOS DE FALLBACK
+
+    public Mono<ResponseEntity<ApiResponse<AlumnoDTO>>> miFallbackMethod(AlumnoDTO alumnoDTO, Exception ex) {
+        LOGGER.warn("Fallback para Circuit Breaker activado en crearAlumno. Error: {}", ex.getMessage());
+
+        // Determinar la causa raíz y crear una respuesta adecuada
+        if (ex instanceof CustomerExcepction.BadRequestException) {
+            return Mono.just(ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(null, ex.getMessage(), AlumnoServiceConstants.CODIGO_BAD_REQUEST, false)));
+        } else if (ex instanceof java.util.concurrent.TimeoutException) {
+            return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(new ApiResponse<>(null, "El servicio no está disponible en este momento (timeout)", "503", false)));
+        } else {
+            // Para otros errores como fallas del circuito, bulkhead lleno, etc.
+            return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(null, "Error de procesamiento: " + ex.getMessage(), "500", false)));
+        }
+    }
+
+    // No olvides implementar los métodos de fallback correspondientes para cada patrón que utilices.
+
 }
